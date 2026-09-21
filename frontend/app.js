@@ -92,8 +92,7 @@ function App() {
       .from("study_logs")
       .select("id,subject_id,task_id,studied_on,duration_minutes,note,created_at")
       .order("studied_on", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(20);
+      .order("created_at", { ascending: false });
 
     if (error) setMessage("勉強実績の読み込みに失敗しました: " + error.message);
     else setLogs(data ?? []);
@@ -339,6 +338,25 @@ function App() {
         ),
   );
 
+  const formatLocalDate = date => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return year + "-" + month + "-" + day;
+  };
+  const today = new Date();
+  const todayKey = formatLocalDate(today);
+  const weekStart = new Date(today);
+  const dayFromMonday = (today.getDay() + 6) % 7;
+  weekStart.setDate(today.getDate() - dayFromMonday);
+  const weekStartKey = formatLocalDate(weekStart);
+  const todayMinutes = logs
+    .filter(log => log.studied_on === todayKey)
+    .reduce((sum, log) => sum + log.duration_minutes, 0);
+  const weekMinutes = logs
+    .filter(log => log.studied_on >= weekStartKey && log.studied_on <= todayKey)
+    .reduce((sum, log) => sum + log.duration_minutes, 0);
+  const openTaskCount = tasks.filter(task => task.status !== "done").length;
   const totalMinutes = logs.reduce((sum, log) => sum + log.duration_minutes, 0);
   const availableLogTasks = tasks.filter(task => task.subject_id === logSubjectId);
   const logItems = logs.map(log => {
@@ -384,11 +402,35 @@ function App() {
         ),
   );
 
+  const summaryCards = h("section", { className: "summary-grid" },
+    h("article", { className: "summary-card accent" },
+      h("span", null, "今日の勉強"),
+      h("strong", null, String(todayMinutes)),
+      h("small", null, "分"),
+    ),
+    h("article", { className: "summary-card" },
+      h("span", null, "今週の合計"),
+      h("strong", null, String(weekMinutes)),
+      h("small", null, "分"),
+    ),
+    h("article", { className: "summary-card" },
+      h("span", null, "未完了タスク"),
+      h("strong", null, String(openTaskCount)),
+      h("small", null, "件"),
+    ),
+    h("article", { className: "summary-card" },
+      h("span", null, "累計勉強"),
+      h("strong", null, String(totalMinutes)),
+      h("small", null, "分"),
+    ),
+  );
+
   const dashboard = h(React.Fragment, null,
     h("section", { className: "account-bar" },
       h("span", null, session?.user.email),
       h("button", { className: "secondary", onClick: signOut }, "ログアウト"),
     ),
+    summaryCards,
     h("div", { className: "dashboard" }, addCard, listCard),
     taskCard,
     logCard,
