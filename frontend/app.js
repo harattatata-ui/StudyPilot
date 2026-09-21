@@ -133,7 +133,7 @@ function App() {
       user_id: session.user.id,
       name,
       description: subjectDescription.trim() || null,
-      color: "#6750a4",
+      color: "#2563eb",
     });
 
     if (error) {
@@ -272,7 +272,7 @@ function App() {
 
   const subjectItems = subjects.map(subject =>
     h("li", { key: subject.id },
-      h("span", { className: "subject-dot", style: { background: subject.color || "#6750a4" } }),
+      h("span", { className: "subject-dot", style: { background: subject.color === "#6750a4" ? "#2563eb" : (subject.color || "#2563eb") } }),
       h("div", null,
         h("strong", null, subject.name),
         h("p", null, subject.description || "メモなし"),
