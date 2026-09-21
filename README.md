@@ -1,46 +1,38 @@
 # StudyPilot
 
-StudyPilot is a web application for managing learning goals, study plans, categories, and daily study logs.
+StudyPilot is a web application for managing learning goals, tasks, and daily study logs.
 
-## Ver.1 scope
+## Current milestone
 
-- Create, view, update, and delete learning goals
-- Manage plans and categories for each goal
-- Record study time and optional question results
-- Keep the data structured for future analytics and AI features
+The first working frontend connects directly to Supabase and supports:
 
-## Planned architecture
+- Email/password sign-up and sign-in
+- Creating a subject
+- Listing the signed-in user's subjects
+- Row Level Security so each user can access only their own data
 
-```text
-React -> Spring Boot REST API -> PostgreSQL (Supabase)
-```
-
-## Repository structure
+## Current architecture
 
 ```text
-studypilot/
-├── frontend/                    # React application (next step)
-├── backend/                     # Spring Boot application (next step)
-│   └── src/main/resources/
-│       └── db/migration/        # Flyway database migrations
-├── database/seed/               # Development-only sample data
-├── docs/                        # Design documents
-└── README.md
+React (static frontend) -> Supabase Auth + Data API -> PostgreSQL
 ```
+
+The frontend prototype is under `frontend/`. See `frontend/README.md` for local startup instructions.
+
+A Spring Boot REST API can be introduced later when StudyPilot needs server-only business logic, external integrations, or secret-backed AI features.
 
 ## Database
 
-The first migration creates four tables:
+The current Supabase project contains:
 
-- `goal`
-- `category`
-- `study_plan`
-- `study_log`
+- `subjects`
+- `study_tasks`
+- `study_logs`
 
-Flyway applies migrations in version order. Do not edit an applied migration; create a new migration such as `V2__add_xxx.sql` instead.
+All three tables have RLS enabled and ownership policies based on `auth.uid() = user_id`.
 
-Development sample data is kept outside Flyway under `database/seed/` so it is not inserted automatically in production.
+Development-only sample data under `database/seed/` reflects an earlier draft schema and must not be run against the current Supabase schema.
 
 ## Security
 
-Database URLs, passwords, API keys, and `.env` files must not be committed to GitHub.
+The browser uses only the Supabase Publishable Key. Database passwords, Secret Keys, legacy service_role keys, and `.env` files must never be committed.
