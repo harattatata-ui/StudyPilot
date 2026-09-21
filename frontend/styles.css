@@ -13,6 +13,13 @@ h2 { margin-bottom: 22px; font-size: 1.35rem; }
 .tagline, .muted, footer { color: #6e6678; }
 .card { padding: 28px; border: 1px solid #e4ddeb; border-radius: 24px; background: #ffffffdd; box-shadow: 0 12px 40px #46345d12; }
 .auth-card { max-width: 460px; }
+.summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }
+.summary-card { position: relative; overflow: hidden; display: grid; padding: 20px; border: 1px solid #e4ddeb; border-radius: 20px; background: #ffffffdd; box-shadow: 0 10px 30px #46345d0d; }
+.summary-card span { margin-bottom: 14px; color: #766e7e; font-size: .78rem; font-weight: 800; }
+.summary-card strong { color: #332742; font-size: 2rem; line-height: 1; }
+.summary-card small { margin-top: 5px; color: #766e7e; font-weight: 800; }
+.summary-card.accent { color: white; border-color: #6750a4; background: linear-gradient(135deg, #6750a4, #8467c7); }
+.summary-card.accent span, .summary-card.accent strong, .summary-card.accent small { color: white; }
 .dashboard { display: grid; grid-template-columns: .9fr 1.1fr; gap: 22px; margin-bottom: 22px; }
 .task-card { margin-top: 0; }
 .log-card { margin-top: 22px; }
@@ -63,6 +70,7 @@ textarea { min-height: 98px; resize: vertical; }
 footer { margin-top: 32px; text-align: center; font-size: .78rem; }
 @media (max-width: 760px) {
   .shell { padding-top: 32px; }
+  .summary-grid { grid-template-columns: repeat(2, 1fr); }
   .dashboard, .task-layout, .log-layout { grid-template-columns: 1fr; }
   .form-row { grid-template-columns: 1fr; }
   .task { align-items: flex-start; flex-direction: column; }
