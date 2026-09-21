@@ -16,6 +16,7 @@ function App() {
   const [session, setSession] = useState(null);
   const [subjects, setSubjects] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [logs, setLogs] = useState([]);
   const [authMode, setAuthMode] = useState("signIn");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,6 +26,11 @@ function App() {
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDueDate, setTaskDueDate] = useState("");
   const [taskMinutes, setTaskMinutes] = useState("");
+  const [logSubjectId, setLogSubjectId] = useState("");
+  const [logTaskId, setLogTaskId] = useState("");
+  const [studiedOn, setStudiedOn] = useState(new Date().toISOString().slice(0, 10));
+  const [durationMinutes, setDurationMinutes] = useState("");
+  const [logNote, setLogNote] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(true);
 
@@ -38,6 +44,7 @@ function App() {
       if (!nextSession) {
         setSubjects([]);
         setTasks([]);
+        setLogs([]);
       }
     });
     return () => listener.subscription.unsubscribe();
@@ -47,6 +54,7 @@ function App() {
     if (session?.user) {
       loadSubjects();
       loadTasks();
+      loadLogs();
     }
   }, [session]);
 
@@ -64,6 +72,7 @@ function App() {
       const nextSubjects = data ?? [];
       setSubjects(nextSubjects);
       setSelectedSubjectId(current => current || nextSubjects[0]?.id || "");
+      setLogSubjectId(current => current || nextSubjects[0]?.id || "");
     }
     setBusy(false);
   }
@@ -76,6 +85,18 @@ function App() {
 
     if (error) setMessage("タスクの読み込みに失敗しました: " + error.message);
     else setTasks(data ?? []);
+  }
+
+  async function loadLogs() {
+    const { data, error } = await supabase
+      .from("study_logs")
+      .select("id,subject_id,task_id,studied_on,duration_minutes,note,created_at")
+      .order("studied_on", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (error) setMessage("勉強実績の読み込みに失敗しました: " + error.message);
+    else setLogs(data ?? []);
   }
 
   async function handleAuth(event) {
@@ -167,6 +188,34 @@ function App() {
     else {
       await loadTasks();
       setMessage("タスクを完了にしました！");
+    }
+    setBusy(false);
+  }
+
+  async function addStudyLog(event) {
+    event.preventDefault();
+    const minutes = Number(durationMinutes);
+    if (!session?.user || !logSubjectId || !studiedOn || !Number.isFinite(minutes) || minutes <= 0) return;
+
+    setBusy(true);
+    setMessage("");
+    const { error } = await supabase.from("study_logs").insert({
+      user_id: session.user.id,
+      subject_id: logSubjectId,
+      task_id: logTaskId || null,
+      studied_on: studiedOn,
+      duration_minutes: minutes,
+      note: logNote.trim() || null,
+    });
+
+    if (error) {
+      setMessage("勉強実績の保存に失敗しました: " + error.message);
+    } else {
+      setDurationMinutes("");
+      setLogNote("");
+      setLogTaskId("");
+      await loadLogs();
+      setMessage("勉強実績を記録しました！");
     }
     setBusy(false);
   }
@@ -290,6 +339,51 @@ function App() {
         ),
   );
 
+  const totalMinutes = logs.reduce((sum, log) => sum + log.duration_minutes, 0);
+  const availableLogTasks = tasks.filter(task => task.subject_id === logSubjectId);
+  const logItems = logs.map(log => {
+    const subject = subjects.find(item => item.id === log.subject_id);
+    const task = tasks.find(item => item.id === log.task_id);
+    return h("li", { key: log.id, className: "log-item" },
+      h("div", { className: "log-duration" }, h("strong", null, String(log.duration_minutes)), h("span", null, "分")),
+      h("div", { className: "log-main" },
+        h("strong", null, subject?.name || "削除済みの科目"),
+        h("p", null, log.studied_on, task ? " · " + task.title : "", log.note ? " · " + log.note : ""),
+      ),
+    );
+  });
+
+  const logCard = h("section", { className: "card log-card" },
+    h("div", { className: "section-heading" },
+      h("div", null, h("p", { className: "eyebrow" }, "STUDY LOG"), h("h2", null, "勉強実績")),
+      h("div", { className: "total-time" }, h("strong", null, String(totalMinutes)), h("span", null, "分 合計")),
+    ),
+    subjects.length === 0
+      ? h("p", { className: "muted" }, "先に科目を追加してください。")
+      : h("div", { className: "log-layout" },
+          h("form", { onSubmit: addStudyLog },
+            h(Field, { label: "科目" },
+              h("select", { value: logSubjectId, onChange: e => { setLogSubjectId(e.target.value); setLogTaskId(""); }, required: true },
+                subjects.map(subject => h("option", { key: subject.id, value: subject.id }, subject.name)))),
+            h(Field, { label: "関連タスク（任意）" },
+              h("select", { value: logTaskId, onChange: e => setLogTaskId(e.target.value) },
+                h("option", { value: "" }, "タスクを選択しない"),
+                availableLogTasks.map(task => h("option", { key: task.id, value: task.id }, task.title)))),
+            h("div", { className: "form-row" },
+              h(Field, { label: "勉強日" },
+                h("input", { type: "date", value: studiedOn, onChange: e => setStudiedOn(e.target.value), required: true })),
+              h(Field, { label: "勉強時間（分）" },
+                h("input", { type: "number", min: 1, max: 1440, value: durationMinutes, onChange: e => setDurationMinutes(e.target.value), placeholder: "60", required: true }))),
+            h(Field, { label: "メモ" },
+              h("textarea", { value: logNote, onChange: e => setLogNote(e.target.value), maxLength: 500, placeholder: "例：IPsecを復習した" })),
+            h("button", { className: "primary", disabled: busy }, busy ? "保存中..." : "勉強実績を記録"),
+          ),
+          logs.length === 0
+            ? h("div", { className: "empty" }, h("p", null, "まだ勉強実績がありません。"), h("small", null, "今日の勉強を記録しよう。"))
+            : h("ul", { className: "log-list" }, logItems),
+        ),
+  );
+
   const dashboard = h(React.Fragment, null,
     h("section", { className: "account-bar" },
       h("span", null, session?.user.email),
@@ -297,6 +391,7 @@ function App() {
     ),
     h("div", { className: "dashboard" }, addCard, listCard),
     taskCard,
+    logCard,
   );
 
   return h("main", { className: "shell" },
