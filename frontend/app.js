@@ -58,7 +58,7 @@ function App() {
     setMessage("");
 
     const result = authMode === "signUp"
-      ? await supabase.auth.signUp({ email, password })
+      ? await supabase.auth.signUp({\n          email,\n          password,\n          options: { emailRedirectTo: window.location.href.split("#")[0] },\n        })
       : await supabase.auth.signInWithPassword({ email, password });
 
     if (result.error) {
