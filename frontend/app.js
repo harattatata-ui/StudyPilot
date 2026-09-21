@@ -15,11 +15,16 @@ function Field({ label, children }) {
 function App() {
   const [session, setSession] = useState(null);
   const [subjects, setSubjects] = useState([]);
+  const [tasks, setTasks] = useState([]);
   const [authMode, setAuthMode] = useState("signIn");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [subjectName, setSubjectName] = useState("");
   const [subjectDescription, setSubjectDescription] = useState("");
+  const [selectedSubjectId, setSelectedSubjectId] = useState("");
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDueDate, setTaskDueDate] = useState("");
+  const [taskMinutes, setTaskMinutes] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(true);
 
@@ -30,13 +35,19 @@ function App() {
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
-      if (!nextSession) setSubjects([]);
+      if (!nextSession) {
+        setSubjects([]);
+        setTasks([]);
+      }
     });
     return () => listener.subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (session?.user) loadSubjects();
+    if (session?.user) {
+      loadSubjects();
+      loadTasks();
+    }
   }, [session]);
 
   async function loadSubjects() {
@@ -47,9 +58,24 @@ function App() {
       .select("id,name,description,color,created_at")
       .order("created_at", { ascending: false });
 
-    if (error) setMessage("読み込みに失敗しました: " + error.message);
-    else setSubjects(data ?? []);
+    if (error) {
+      setMessage("読み込みに失敗しました: " + error.message);
+    } else {
+      const nextSubjects = data ?? [];
+      setSubjects(nextSubjects);
+      setSelectedSubjectId(current => current || nextSubjects[0]?.id || "");
+    }
     setBusy(false);
+  }
+
+  async function loadTasks() {
+    const { data, error } = await supabase
+      .from("study_tasks")
+      .select("id,subject_id,title,status,due_date,estimated_minutes,created_at")
+      .order("created_at", { ascending: false });
+
+    if (error) setMessage("タスクの読み込みに失敗しました: " + error.message);
+    else setTasks(data ?? []);
   }
 
   async function handleAuth(event) {
@@ -97,6 +123,50 @@ function App() {
       setSubjectDescription("");
       await loadSubjects();
       setMessage("科目を追加しました！");
+    }
+    setBusy(false);
+  }
+
+  async function addTask(event) {
+    event.preventDefault();
+    const title = taskTitle.trim();
+    if (!title || !selectedSubjectId || !session?.user) return;
+
+    setBusy(true);
+    setMessage("");
+    const minutes = taskMinutes === "" ? null : Number(taskMinutes);
+    const { error } = await supabase.from("study_tasks").insert({
+      user_id: session.user.id,
+      subject_id: selectedSubjectId,
+      title,
+      due_date: taskDueDate || null,
+      estimated_minutes: minutes,
+    });
+
+    if (error) {
+      setMessage("タスク追加に失敗しました: " + error.message);
+    } else {
+      setTaskTitle("");
+      setTaskDueDate("");
+      setTaskMinutes("");
+      await loadTasks();
+      setMessage("タスクを追加しました！");
+    }
+    setBusy(false);
+  }
+
+  async function completeTask(taskId) {
+    setBusy(true);
+    setMessage("");
+    const { error } = await supabase
+      .from("study_tasks")
+      .update({ status: "done", completed_at: new Date().toISOString() })
+      .eq("id", taskId);
+
+    if (error) setMessage("タスク更新に失敗しました: " + error.message);
+    else {
+      await loadTasks();
+      setMessage("タスクを完了にしました！");
     }
     setBusy(false);
   }
@@ -176,12 +246,57 @@ function App() {
     listContent,
   );
 
+  const taskItems = tasks.map(task => {
+    const subject = subjects.find(item => item.id === task.subject_id);
+    return h("li", { key: task.id, className: task.status === "done" ? "task done" : "task" },
+      h("div", { className: "task-main" },
+        h("span", { className: "task-subject" }, subject?.name || "科目"),
+        h("strong", null, task.title),
+        h("p", null,
+          task.due_date ? "期限 " + task.due_date : "期限なし",
+          task.estimated_minutes != null ? " · " + task.estimated_minutes + "分" : "",
+        ),
+      ),
+      task.status === "done"
+        ? h("span", { className: "done-label" }, "完了")
+        : h("button", { className: "secondary", disabled: busy, onClick: () => completeTask(task.id) }, "完了にする"),
+    );
+  });
+
+  const taskCard = h("section", { className: "card task-card" },
+    h("div", { className: "section-heading" },
+      h("div", null, h("p", { className: "eyebrow" }, "STUDY TASKS"), h("h2", null, "勉強タスク")),
+      h("span", { className: "count" }, String(tasks.filter(task => task.status !== "done").length)),
+    ),
+    subjects.length === 0
+      ? h("p", { className: "muted" }, "先に科目を追加してください。")
+      : h("div", { className: "task-layout" },
+          h("form", { onSubmit: addTask },
+            h(Field, { label: "科目" },
+              h("select", { value: selectedSubjectId, onChange: e => setSelectedSubjectId(e.target.value), required: true },
+                subjects.map(subject => h("option", { key: subject.id, value: subject.id }, subject.name)))),
+            h(Field, { label: "タスク名" },
+              h("input", { value: taskTitle, onChange: e => setTaskTitle(e.target.value), maxLength: 120, placeholder: "例：科目Bを1問解く", required: true })),
+            h("div", { className: "form-row" },
+              h(Field, { label: "期限" },
+                h("input", { type: "date", value: taskDueDate, onChange: e => setTaskDueDate(e.target.value) })),
+              h(Field, { label: "予定時間（分）" },
+                h("input", { type: "number", min: 0, max: 1440, value: taskMinutes, onChange: e => setTaskMinutes(e.target.value), placeholder: "30" }))),
+            h("button", { className: "primary", disabled: busy }, busy ? "保存中..." : "タスクを追加"),
+          ),
+          tasks.length === 0
+            ? h("div", { className: "empty" }, h("p", null, "まだタスクがありません。"), h("small", null, "最初にやることを登録しよう。"))
+            : h("ul", { className: "task-list" }, taskItems),
+        ),
+  );
+
   const dashboard = h(React.Fragment, null,
     h("section", { className: "account-bar" },
       h("span", null, session?.user.email),
       h("button", { className: "secondary", onClick: signOut }, "ログアウト"),
     ),
     h("div", { className: "dashboard" }, addCard, listCard),
+    taskCard,
   );
 
   return h("main", { className: "shell" },
